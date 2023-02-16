@@ -48,7 +48,7 @@ my $resolvers = {
     Query => {
         entries => sub {
             my $dbh = connect_db();
-            my $entries = $dbh->select_all('SELECT id, title, body FROM entry');
+            my $entries = select_entries($dbh);
             return $entries;
         },
     },
@@ -63,6 +63,12 @@ sub connect_db {
     my $dsn = "dbi:SQLite:database=$dbname";
     my $dbh = DBIx::Sunny->connect($dsn, $user, $password, {});
     return $dbh;
+}
+
+sub select_entries {
+    my $dbh = shift;
+    my $LIMIT = $ENV{LIMIT};
+    my $entries = $dbh->select_all("SELECT id, title FROM entry LIMIT $LIMIT");
 }
 
 my $json_encoder = Cpanel::JSON::XS->new->utf8;
@@ -132,6 +138,26 @@ sub graphql {
     ]
 };
 
+sub rest {
+    my $dbh = connect_db();
+    my $entries = select_entries($dbh);
+
+    my $json = $json_encoder->encode({
+        data => {
+            entries => $entries,
+        }
+    });
+
+    return [
+        200,
+        [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Content-Length' => length $json,
+        ],
+        [$json]
+    ]
+}
+
 sub not_found {
     return [
         404,
@@ -146,6 +172,7 @@ builder {
         \&graphql;
     };
     mount '/graphiql' => \&graphiql;
+    mount '/rest' => \&rest;
     mount '/' => \&not_found;
 };
 
