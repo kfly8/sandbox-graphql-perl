@@ -5,7 +5,8 @@ use Plack::Builder;
 use HTTP::Entity::Parser;
 use Hash::MultiValue;
 use Encode;
-use Cpanel::JSON::XS;
+use Cpanel::JSON::XS ();
+use JSON::PP ();
 
 use Data::Section::Simple qw(get_data_section);
 
@@ -72,6 +73,7 @@ sub select_entries {
 }
 
 my $json_encoder = Cpanel::JSON::XS->new->utf8;
+my $json_pp_encoder = JSON::PP->new->utf8;
 
 my $body_parser = HTTP::Entity::Parser->new();
 $body_parser->register(
@@ -158,6 +160,27 @@ sub rest {
     ]
 }
 
+sub rest_pp {
+    my $dbh = connect_db();
+    my $entries = select_entries($dbh);
+
+    my $json = $json_pp_encoder->encode({
+        data => {
+            entries => $entries,
+        }
+    });
+
+    return [
+        200,
+        [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Content-Length' => length $json,
+        ],
+        [$json]
+    ]
+}
+
+
 sub not_found {
     return [
         404,
@@ -173,6 +196,7 @@ builder {
     };
     mount '/graphiql' => \&graphiql;
     mount '/rest' => \&rest;
+    mount '/rest_pp' => \&rest_pp;
     mount '/' => \&not_found;
 };
 
